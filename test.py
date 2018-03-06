@@ -1,7 +1,7 @@
 import os
 from options.test_options import TestOptions
 from data.dataloader import create_data_loader
-from models.models import create_model
+from models.model import create_model
 from util.visualizer import save_images
 from itertools import islice
 from util import html

@@ -5,6 +5,7 @@ from torch.autograd import Variable
 import functools
 from torch.optim import lr_scheduler
 
+
 ###############################################################################
 # Functions
 ###############################################################################
@@ -75,6 +76,7 @@ def get_scheduler(optimizer, opt):
         def lambda_rule(epoch):
             lr_l = 1.0 - max(0, epoch - opt.niter) / float(opt.niter_decay + 1)
             return lr_l
+
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
     elif opt.lr_policy == 'step':
         scheduler = lr_scheduler.StepLR(
@@ -114,102 +116,85 @@ def get_non_linearity(layer_type='relu'):
     return nl_layer
 
 
-def define_G(input_nc, output_nc, nz, ngf,
-             which_model_netG='unet_128', norm='batch', nl='relu',
-             use_dropout=False, init_type='xavier', gpu_ids=[], where_add='input', upsample='bilinear'):
-    netG = None
+def define_g(input_nc, output_nc, nz, ngf,
+             which_model_net_g='unet_128', norm='batch', nl='relu',
+             use_dropout=False, init_type='xavier', gpu_ids=list(), where_add='input', upsample='bilinear'):
     use_gpu = len(gpu_ids) > 0
     norm_layer = get_norm_layer(layer_type=norm)
     nl_layer = get_non_linearity(layer_type=nl)
     # upsample = 'bilinear'
     if use_gpu:
-        assert(torch.cuda.is_available())
+        assert torch.cuda.is_available()
 
     if nz == 0:
         where_add = 'input'
 
-    if which_model_netG == 'unet_128' and where_add == 'input':
-        netG = G_Unet_add_input(input_nc, output_nc, nz, 7, ngf, norm_layer=norm_layer, nl_layer=nl_layer,
-                                use_dropout=use_dropout, gpu_ids=gpu_ids, upsample=upsample)
-    elif which_model_netG == 'unet_256' and where_add == 'input':
-        netG = G_Unet_add_input(input_nc, output_nc, nz, 8, ngf, norm_layer=norm_layer, nl_layer=nl_layer,
-                                use_dropout=use_dropout, gpu_ids=gpu_ids, upsample=upsample)
-    elif which_model_netG == 'unet_128' and where_add == 'all':
-        netG = G_Unet_add_all(input_nc, output_nc, nz, 7, ngf, norm_layer=norm_layer, nl_layer=nl_layer,
-                              use_dropout=use_dropout, gpu_ids=gpu_ids, upsample=upsample)
-    elif which_model_netG == 'unet_256' and where_add == 'all':
-        netG = G_Unet_add_all(input_nc, output_nc, nz, 8, ngf, norm_layer=norm_layer, nl_layer=nl_layer,
-                              use_dropout=use_dropout, gpu_ids=gpu_ids, upsample=upsample)
+    if which_model_net_g == 'unet_128' and where_add == 'input':
+        net_g = GUNetAddInput(input_nc, output_nc, nz, 7, ngf, norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout, upsample=upsample)
+    elif which_model_net_g == 'unet_256' and where_add == 'input':
+        net_g = GUNetAddInput(input_nc, output_nc, nz, 8, ngf, norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout, upsample=upsample)
+    elif which_model_net_g == 'unet_128' and where_add == 'all':
+        net_g = GUNetAddAll(input_nc, output_nc, nz, 7, ngf, norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout, upsample=upsample)
+    elif which_model_net_g == 'unet_256' and where_add == 'all':
+        net_g = GUNetAddAll(input_nc, output_nc, nz, 8, ngf, norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout, upsample=upsample)
     else:
         raise NotImplementedError(
-            'Generator model name [%s] is not recognized' % which_model_netG)
+            'Generator model name [%s] is not recognized' % which_model_net_g)
 
     if len(gpu_ids) > 0:
-        netG.cuda(gpu_ids[0])
-    init_weights(netG, init_type=init_type)
-    return netG
+        net_g.cuda(gpu_ids[0])
+    init_weights(net_g, init_type=init_type)
+    return net_g
 
 
-def define_D(input_nc, ndf, which_model_netD,
-             norm='batch', nl='lrelu',
-             use_sigmoid=False, init_type='xavier', num_Ds=1, gpu_ids=[]):
-    netD = None
+def define_d(input_nc, ndf, which_model_net_d,
+             norm='batch', use_sigmoid=False, init_type='xavier', num_d_s=1, gpu_ids=list()):
     use_gpu = len(gpu_ids) > 0
     norm_layer = get_norm_layer(layer_type=norm)
     nl = 'lrelu'  # use leaky relu for D
     nl_layer = get_non_linearity(layer_type=nl)
     if use_gpu:
-        assert(torch.cuda.is_available())
-    if which_model_netD == 'basic_128':
-        netD = D_NLayers(input_nc, ndf, n_layers=2, norm_layer=norm_layer,
-                         nl_layer=nl_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids)
-    elif which_model_netD == 'basic_256':
-        netD = D_NLayers(input_nc, ndf, n_layers=3, norm_layer=norm_layer,
-                         nl_layer=nl_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids)
-    elif which_model_netD == 'basic_128_multi':
-        netD = D_NLayersMulti(input_nc=input_nc, ndf=ndf, n_layers=2, norm_layer=norm_layer,
-                              use_sigmoid=use_sigmoid, gpu_ids=gpu_ids, num_D=num_Ds)
-    elif which_model_netD == 'basic_256_multi':
-        netD = D_NLayersMulti(input_nc=input_nc, ndf=ndf, n_layers=3, norm_layer=norm_layer,
-                              use_sigmoid=use_sigmoid, gpu_ids=gpu_ids, num_D=num_Ds)
+        assert (torch.cuda.is_available())
+    if which_model_net_d == 'basic_128':
+        net_d = DNLayers(input_nc, ndf, n_layers=2, norm_layer=norm_layer, nl_layer=nl_layer, use_sigmoid=use_sigmoid)
+    elif which_model_net_d == 'basic_256':
+        net_d = DNLayers(input_nc, ndf, n_layers=3, norm_layer=norm_layer, nl_layer=nl_layer, use_sigmoid=use_sigmoid)
+    elif which_model_net_d == 'basic_128_multi':
+        net_d = DNLayersMulti(input_nc=input_nc, ndf=ndf, n_layers=2, norm_layer=norm_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids, num_d=num_d_s)
+    elif which_model_net_d == 'basic_256_multi':
+        net_d = DNLayersMulti(input_nc=input_nc, ndf=ndf, n_layers=3, norm_layer=norm_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids, num_d=num_d_s)
     else:
         raise NotImplementedError(
-            'Discriminator model name [%s] is not recognized' % which_model_netD)
+            'Discriminator model name [%s] is not recognized' % which_model_net_d)
     if use_gpu:
-        netD.cuda(gpu_ids[0])
-    init_weights(netD, init_type=init_type)
-    return netD
+        net_d.cuda(gpu_ids[0])
+    init_weights(net_d, init_type=init_type)
+    return net_d
 
 
-def define_E(input_nc, output_nc, ndf, which_model_netE,
-             norm='batch', nl='lrelu',
-             init_type='xavier', gpu_ids=[], vaeLike=False):
-    netE = None
+def define_e(input_nc, output_nc, ndf, which_model_net_e,
+             norm='batch', init_type='xavier', gpu_ids=list(), vae_like=False):
     use_gpu = len(gpu_ids) > 0
     norm_layer = get_norm_layer(layer_type=norm)
     nl = 'lrelu'  # use leaky relu for E
     nl_layer = get_non_linearity(layer_type=nl)
     if use_gpu:
-        assert(torch.cuda.is_available())
-    if which_model_netE == 'resnet_128':
-        netE = E_ResNet(input_nc, output_nc, ndf, n_blocks=4, norm_layer=norm_layer,
-                        nl_layer=nl_layer, gpu_ids=gpu_ids, vaeLike=vaeLike)
-    elif which_model_netE == 'resnet_256':
-        netE = E_ResNet(input_nc, output_nc, ndf, n_blocks=5, norm_layer=norm_layer,
-                        nl_layer=nl_layer, gpu_ids=gpu_ids, vaeLike=vaeLike)
-    elif which_model_netE == 'conv_128':
-        netE = E_NLayers(input_nc, output_nc, ndf, n_layers=4, norm_layer=norm_layer,
-                         nl_layer=nl_layer, gpu_ids=gpu_ids, vaeLike=vaeLike)
-    elif which_model_netE == 'conv_256':
-        netE = E_NLayers(input_nc, output_nc, ndf, n_layers=5, norm_layer=norm_layer,
-                         nl_layer=nl_layer, gpu_ids=gpu_ids, vaeLike=vaeLike)
+        assert (torch.cuda.is_available())
+    if which_model_net_e == 'resnet_128':
+        net_e = EResnet(input_nc, output_nc, ndf, n_blocks=4, norm_layer=norm_layer, nl_layer=nl_layer, vae_like=vae_like)
+    elif which_model_net_e == 'resnet_256':
+        net_e = EResnet(input_nc, output_nc, ndf, n_blocks=5, norm_layer=norm_layer, nl_layer=nl_layer, vae_like=vae_like)
+    elif which_model_net_e == 'conv_128':
+        net_e = ENLayers(input_nc, output_nc, ndf, n_layers=4, norm_layer=norm_layer, nl_layer=nl_layer, vae_like=vae_like)
+    elif which_model_net_e == 'conv_256':
+        net_e = ENLayers(input_nc, output_nc, ndf, n_layers=5, norm_layer=norm_layer, nl_layer=nl_layer, vae_like=vae_like)
     else:
         raise NotImplementedError(
-            'Encoder model name [%s] is not recognized' % which_model_netE)
+            'Encoder model name [%s] is not recognized' % which_model_net_e)
     if use_gpu:
-        netE.cuda(gpu_ids[0])
-    init_weights(netE, init_type=init_type)
-    return netE
+        net_e.cuda(gpu_ids[0])
+    init_weights(net_e, init_type=init_type)
+    return net_e
 
 
 class ListModule(object):
@@ -238,14 +223,13 @@ class ListModule(object):
         return getattr(self.module, self.prefix + str(i))
 
 
-class D_NLayersMulti(nn.Module):
+class DNLayersMulti(nn.Module):
     def __init__(self, input_nc, ndf=64, n_layers=3,
-                 norm_layer=nn.BatchNorm2d, use_sigmoid=False, gpu_ids=[], num_D=1):
-        super(D_NLayersMulti, self).__init__()
+                 norm_layer=nn.BatchNorm2d, use_sigmoid=False, num_d=1):
+        super(DNLayersMulti, self).__init__()
         # st()
-        self.gpu_ids = gpu_ids
-        self.num_D = num_D
-        if num_D == 1:
+        self.num_D = num_d
+        if num_d == 1:
             layers = self.get_layers(
                 input_nc, ndf, n_layers, norm_layer, use_sigmoid)
             self.model = nn.Sequential(*layers)
@@ -255,59 +239,54 @@ class D_NLayersMulti(nn.Module):
                 input_nc, ndf, n_layers, norm_layer, use_sigmoid)
             self.model.append(nn.Sequential(*layers))
             self.down = nn.AvgPool2d(3, stride=2, padding=[
-                                     1, 1], count_include_pad=False)
-            for i in range(num_D - 1):
-                ndf = int(round(ndf / (2**(i + 1))))
+                1, 1], count_include_pad=False)
+            for i in range(num_d - 1):
+                ndf = int(round(ndf / (2 ** (i + 1))))
                 layers = self.get_layers(
                     input_nc, ndf, n_layers, norm_layer, use_sigmoid)
                 self.model.append(nn.Sequential(*layers))
 
-    def get_layers(self, input_nc, ndf=64, n_layers=3,
+    @staticmethod
+    def get_layers(input_nc, ndf=64, n_layers=3,
                    norm_layer=nn.BatchNorm2d, use_sigmoid=False):
         kw = 4
-        padw = 1
-        sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw,
-                              stride=2, padding=padw), nn.LeakyReLU(0.2, True)]
+        pad = 1
+        sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=pad), nn.LeakyReLU(0.2, True)]
 
-        nf_mult = 1
-        nf_mult_prev = 1
+        nf_multi = 1
         for n in range(1, n_layers):
-            nf_mult_prev = nf_mult
-            nf_mult = min(2**n, 8)
+            nf_multi_prev = nf_multi
+            nf_multi = min(2 ** n, 8)
             sequence += [
-                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
-                          kernel_size=kw, stride=2, padding=padw),
-                norm_layer(ndf * nf_mult),
+                nn.Conv2d(ndf * nf_multi_prev, ndf * nf_multi, kernel_size=kw, stride=2, padding=pad),
+                norm_layer(ndf * nf_multi),
                 nn.LeakyReLU(0.2, True)
             ]
 
-        nf_mult_prev = nf_mult
-        nf_mult = min(2**n_layers, 8)
+        nf_multi_prev = nf_multi
+        nf_multi = min(2 ** n_layers, 8)
         sequence += [
-            nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
-                      kernel_size=kw, stride=1, padding=padw),
-            norm_layer(ndf * nf_mult),
-            nn.LeakyReLU(0.2, True)
-        ]
+            nn.Conv2d(ndf * nf_multi_prev, ndf * nf_multi, kernel_size=kw, stride=1, padding=pad),
+            norm_layer(ndf * nf_multi),
+            nn.LeakyReLU(0.2, True)]
 
-        sequence += [nn.Conv2d(ndf * nf_mult, 1,
-                               kernel_size=kw, stride=1, padding=padw)]
+        sequence += [nn.Conv2d(ndf * nf_multi, 1, kernel_size=kw, stride=1, padding=pad)]
 
         if use_sigmoid:
             sequence += [nn.Sigmoid()]
         return sequence
 
-    def parallel_forward(self, model, input):
-        if self.gpu_ids and isinstance(input.data, torch.cuda.FloatTensor):
-            return nn.parallel.data_parallel(model, input, self.gpu_ids)
+    def parallel_forward(self, model, data):
+        if self.gpu_ids and isinstance(data.data, torch.cuda.FloatTensor):
+            return nn.parallel.data_parallel(model, data, self.gpu_ids)
         else:
-            return model(input)
+            return model(data)
 
-    def forward(self, input):
+    def forward(self, data):
         if self.num_D == 1:
-            return self.parallel_forward(self.model, input)
+            return self.parallel_forward(self.model, data)
         result = []
-        down = input
+        down = data
         for i in range(self.num_D):
             result.append(self.parallel_forward(self.model[i], down))
             if i != self.num_D - 1:
@@ -316,87 +295,70 @@ class D_NLayersMulti(nn.Module):
 
 
 # Defines the conv discriminator with the specified arguments.
-class G_NLayers(nn.Module):
-    def __init__(self, output_nc=3, nz=100, ngf=64, n_layers=3,
-                 norm_layer=None, nl_layer=None, gpu_ids=[]):
-        super(G_NLayers, self).__init__()
-        self.gpu_ids = gpu_ids
+class GNLayers(nn.Module):
+    def __init__(self, output_nc=3, nz=100, ngf=64, n_layers=3, norm_layer=None, nl_layer=None):
+        super(GNLayers, self).__init__()
 
-        kw, s, padw = 4, 2, 1
-        sequence = [nn.ConvTranspose2d(
-            nz, ngf * 4, kernel_size=kw, stride=1, padding=0, bias=True)]
+        kw, s, pad = 4, 2, 1
+        sequence = [nn.ConvTranspose2d(nz, ngf * 4, kernel_size=kw, stride=1, padding=0, bias=True)]
         if norm_layer is not None:
             sequence += [norm_layer(ngf * 4)]
 
         sequence += [nl_layer()]
 
-        nf_mult = 4
-        nf_mult_prev = 4
+        nf_multi = 4
         for n in range(n_layers, 0, -1):
-            nf_mult_prev = nf_mult
-            nf_mult = min(n, 4)
-            sequence += [nn.ConvTranspose2d(ngf * nf_mult_prev, ngf * nf_mult,
-                                            kernel_size=kw, stride=s, padding=padw, bias=True)]
+            nf_mult_prev = nf_multi
+            nf_multi = min(n, 4)
+            sequence += [nn.ConvTranspose2d(ngf * nf_mult_prev, ngf * nf_multi, kernel_size=kw, stride=s, padding=pad, bias=True)]
             if norm_layer is not None:
-                sequence += [norm_layer(ngf * nf_mult)]
+                sequence += [norm_layer(ngf * nf_multi)]
             sequence += [nl_layer()]
 
-        sequence += [nn.ConvTranspose2d(ngf, output_nc,
-                                        kernel_size=4, stride=s, padding=padw, bias=True)]
+        sequence += [nn.ConvTranspose2d(ngf, output_nc, kernel_size=4, stride=s, padding=pad, bias=True)]
         sequence += [nn.Tanh()]
 
         self.model = nn.Sequential(*sequence)
 
-    def forward(self, input):
-        if len(self.gpu_ids) and isinstance(input.data, torch.cuda.FloatTensor):
-            return nn.parallel.data_parallel(self.model, input, self.gpu_ids)
+    def forward(self, data):
+        if len(self.gpu_ids) and isinstance(data.data, torch.cuda.FloatTensor):
+            return nn.parallel.data_parallel(self.model, data, self.gpu_ids)
         else:
-            return self.model(input)
+            return self.model(data)
 
 
-class D_NLayers(nn.Module):
-    def __init__(self, input_nc=3, ndf=64, n_layers=3,
-                 norm_layer=None, nl_layer=None, use_sigmoid=False, gpu_ids=[]):
-        super(D_NLayers, self).__init__()
-        self.gpu_ids = gpu_ids
+class DNLayers(nn.Module):
+    def __init__(self, input_nc=3, ndf=64, n_layers=3, norm_layer=None, nl_layer=None, use_sigmoid=False):
+        super(DNLayers, self).__init__()
 
-        kw, padw, use_bias = 4, 1, True
+        kw, pad, use_bias = 4, 1, True
         # st()
-        sequence = [
-            nn.Conv2d(input_nc, ndf, kernel_size=kw,
-                      stride=2, padding=padw, bias=use_bias),
-            nl_layer()
-        ]
+        sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=pad, bias=use_bias), nl_layer()]
 
-        nf_mult = 1
-        nf_mult_prev = 1
+        nf_multi = 1
         for n in range(1, n_layers):
-            nf_mult_prev = nf_mult
-            nf_mult = min(2**n, 8)
-            sequence += [nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
-                                   kernel_size=kw, stride=2, padding=padw, bias=use_bias)]
+            nf_multi_prev = nf_multi
+            nf_multi = min(2 ** n, 8)
+            sequence += [nn.Conv2d(ndf * nf_multi_prev, ndf * nf_multi, kernel_size=kw, stride=2, padding=pad, bias=use_bias)]
             if norm_layer is not None:
-                sequence += [norm_layer(ndf * nf_mult)]
+                sequence += [norm_layer(ndf * nf_multi)]
             sequence += [nl_layer()]
 
-        nf_mult_prev = nf_mult
-        nf_mult = min(2**n_layers, 8)
-        sequence += [
-            nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
-                      kernel_size=kw, stride=1, padding=padw, bias=use_bias)]
+        nf_multi_prev = nf_multi
+        nf_multi = min(2 ** n_layers, 8)
+        sequence += [nn.Conv2d(ndf * nf_multi_prev, ndf * nf_multi, kernel_size=kw, stride=1, padding=pad, bias=use_bias)]
         if norm_layer is not None:
-            sequence += [norm_layer(ndf * nf_mult)]
+            sequence += [norm_layer(ndf * nf_multi)]
         sequence += [nl_layer()]
-        sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=4,
-                               stride=1, padding=0, bias=use_bias)]
+        sequence += [nn.Conv2d(ndf * nf_multi, 1, kernel_size=4, stride=1, padding=0, bias=use_bias)]
 
         if use_sigmoid:
             sequence += [nn.Sigmoid()]
 
         self.model = nn.Sequential(*sequence)
 
-    def forward(self, input):
-        output = self.model(input)
+    def forward(self, data):
+        output = self.model(data)
         return output
 
 
@@ -411,7 +373,7 @@ def print_network(net):
 ##############################################################################
 # Classes
 ##############################################################################
-class RecLoss(nn.Module):
+class RecLoss(object):
     def __init__(self, use_L2=True):
         super(RecLoss, self).__init__()
         self.use_L2 = use_L2
@@ -431,7 +393,7 @@ class RecLoss(nn.Module):
 # When LSGAN is used, it is basically same as MSELoss,
 # but it abstracts away the need to create the target label tensor
 # that has the same size as the input
-class GANLoss(nn.Module):
+class GANLoss(object):
     def __init__(self, mse_loss=True, target_real_label=1.0, target_fake_label=0.0,
                  tensor=torch.FloatTensor):
         super(GANLoss, self).__init__()
@@ -445,21 +407,20 @@ class GANLoss(nn.Module):
         else:
             self.loss = nn.BCELoss()
 
-    def get_target_tensor(self, input, target_is_real):
-        target_tensor = None
+    def get_target_tensor(self, data, target_is_real):
         if target_is_real:
             create_label = ((self.real_label_var is None) or
-                            (self.real_label_var.numel() != input.numel()))
+                            (self.real_label_var.numel() != data.numel()))
             if create_label:
-                real_tensor = self.Tensor(input.size()).fill_(self.real_label)
+                real_tensor = self.Tensor(data.size()).fill_(self.real_label)
                 self.real_label_var = Variable(
                     real_tensor, requires_grad=False)
             target_tensor = self.real_label_var
         else:
             create_label = ((self.fake_label_var is None) or
-                            (self.fake_label_var.numel() != input.numel()))
+                            (self.fake_label_var.numel() != data.numel()))
             if create_label:
-                fake_tensor = self.Tensor(input.size()).fill_(self.fake_label)
+                fake_tensor = self.Tensor(data.size()).fill_(self.fake_label)
                 self.fake_label_var = Variable(
                     fake_tensor, requires_grad=False)
             target_tensor = self.fake_label_var
@@ -469,12 +430,11 @@ class GANLoss(nn.Module):
         # if input is a list
         loss = 0.0
         all_losses = []
-        for input in inputs:
-            target_tensor = self.get_target_tensor(input, target_is_real)
-            loss_input = self.loss(input, target_tensor)
+        for data in inputs:
+            target_tensor = self.get_target_tensor(data, target_is_real)
+            loss_input = self.loss(data, target_tensor)
             loss = loss + loss_input
             all_losses.append(loss_input)
-            # st()
         return loss, all_losses
 
 
@@ -482,32 +442,30 @@ class GANLoss(nn.Module):
 # |num_downs|: number of downsamplings in UNet. For example,
 # if |num_downs| == 7, image of size 128x128 will become of size 1x1
 # at the bottleneck
-class G_Unet_add_input(nn.Module):
+class GUNetAddInput(nn.Module):
     def __init__(self, input_nc, output_nc, nz, num_downs, ngf=64,
-                 norm_layer=None, nl_layer=None, use_dropout=False,
-                 gpu_ids=[], upsample='basic'):
-        super(G_Unet_add_input, self).__init__()
-        self.gpu_ids = gpu_ids
+                 norm_layer=None, nl_layer=None, use_dropout=False, upsample='basic'):
+        super(GUNetAddInput, self).__init__()
         self.nz = nz
         # currently support only input_nc == output_nc
         # assert(input_nc == output_nc)
         max_nchn = 8
         # construct unet structure
-        unet_block = UnetBlock(ngf * max_nchn, ngf * max_nchn, ngf * max_nchn,
-                               innermost=True, norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+        u_net_block = UNetBlock(ngf * max_nchn, ngf * max_nchn, ngf * max_nchn,
+                                innermost=True, norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
         for i in range(num_downs - 5):
-            unet_block = UnetBlock(ngf * max_nchn, ngf * max_nchn, ngf * max_nchn, unet_block,
-                                   norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout, upsample=upsample)
-        unet_block = UnetBlock(ngf * 4, ngf * 4, ngf * max_nchn, unet_block,
-                               norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
-        unet_block = UnetBlock(ngf * 2, ngf * 2, ngf * 4, unet_block,
-                               norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
-        unet_block = UnetBlock(ngf, ngf, ngf * 2, unet_block,
-                               norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
-        unet_block = UnetBlock(input_nc + nz, output_nc, ngf, unet_block,
-                               outermost=True, norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+            u_net_block = UNetBlock(ngf * max_nchn, ngf * max_nchn, ngf * max_nchn, u_net_block,
+                                    norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout, upsample=upsample)
+        u_net_block = UNetBlock(ngf * 4, ngf * 4, ngf * max_nchn, u_net_block,
+                                norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+        u_net_block = UNetBlock(ngf * 2, ngf * 2, ngf * 4, u_net_block,
+                                norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+        u_net_block = UNetBlock(ngf, ngf, ngf * 2, u_net_block,
+                                norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+        u_net_block = UNetBlock(input_nc + nz, output_nc, ngf, u_net_block,
+                                outermost=True, norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
 
-        self.model = unet_block
+        self.model = u_net_block
 
     def forward(self, x, z=None):
         if self.nz > 0:
@@ -520,72 +478,72 @@ class G_Unet_add_input(nn.Module):
         return self.model(x_with_z)
 
 
-def upsampleLayer(inplanes, outplanes, upsample='basic', padding_type='zero'):
+def upsample_layer(inplanes, outplanes, upsample='basic'):
     # padding_type = 'zero'
     if upsample == 'basic':
-        upconv = [nn.ConvTranspose2d(
+        up_conv = [nn.ConvTranspose2d(
             inplanes, outplanes, kernel_size=4, stride=2, padding=1)]
     elif upsample == 'bilinear':
-        upconv = [nn.Upsample(scale_factor=2, mode='bilinear'),
-                  nn.ReflectionPad2d(1),
-                  nn.Conv2d(inplanes, outplanes, kernel_size=3, stride=1, padding=0)]
+        up_conv = [nn.Upsample(scale_factor=2, mode='bilinear'),
+                   nn.ReflectionPad2d(1),
+                   nn.Conv2d(inplanes, outplanes, kernel_size=3, stride=1, padding=0)]
     else:
         raise NotImplementedError(
             'upsample layer [%s] not implemented' % upsample)
-    return upconv
+    return up_conv
 
 
 # Defines the submodule with skip connection.
 # X -------------------identity---------------------- X
 #   |-- downsampling -- |submodule| -- upsampling --|
-class UnetBlock(nn.Module):
+class UNetBlock(nn.Module):
     def __init__(self, input_nc, outer_nc, inner_nc,
                  submodule=None, outermost=False, innermost=False,
                  norm_layer=None, nl_layer=None, use_dropout=False, upsample='basic', padding_type='zero'):
-        super(UnetBlock, self).__init__()
+        super(UNetBlock, self).__init__()
         self.outermost = outermost
         p = 0
-        downconv = []
+        down_conv = []
         if padding_type == 'reflect':
-            downconv += [nn.ReflectionPad2d(1)]
+            down_conv += [nn.ReflectionPad2d(1)]
         elif padding_type == 'replicate':
-            downconv += [nn.ReplicationPad2d(1)]
+            down_conv += [nn.ReplicationPad2d(1)]
         elif padding_type == 'zero':
             p = 1
         else:
             raise NotImplementedError(
                 'padding [%s] is not implemented' % padding_type)
-        downconv += [nn.Conv2d(input_nc, inner_nc,
+        down_conv += [nn.Conv2d(input_nc, inner_nc,
                                kernel_size=4, stride=2, padding=p)]
         # downsample is different from upsample
-        downrelu = nn.LeakyReLU(0.2, True)
-        downnorm = norm_layer(inner_nc) if norm_layer is not None else None
-        uprelu = nl_layer()
-        upnorm = norm_layer(outer_nc) if norm_layer is not None else None
+        down_relu = nn.LeakyReLU(0.2, True)
+        down_norm = norm_layer(inner_nc) if norm_layer is not None else None
+        up_relu = nl_layer()
+        up_norm = norm_layer(outer_nc) if norm_layer is not None else None
 
         if outermost:
-            upconv = upsampleLayer(
+            up_conv = upsample_layer(
                 inner_nc * 2, outer_nc, upsample=upsample, padding_type=padding_type)
-            down = downconv
-            up = [uprelu] + upconv + [nn.Tanh()]
+            down = down_conv
+            up = [up_relu] + up_conv + [nn.Tanh()]
             model = down + [submodule] + up
         elif innermost:
-            upconv = upsampleLayer(
+            up_conv = upsample_layer(
                 inner_nc, outer_nc, upsample=upsample, padding_type=padding_type)
-            down = [downrelu] + downconv
-            up = [uprelu] + upconv
-            if upnorm is not None:
-                up += [upnorm]
+            down = [down_relu] + down_conv
+            up = [up_relu] + up_conv
+            if up_norm is not None:
+                up += [up_norm]
             model = down + up
         else:
-            upconv = upsampleLayer(
+            up_conv = upsample_layer(
                 inner_nc * 2, outer_nc, upsample=upsample, padding_type=padding_type)
-            down = [downrelu] + downconv
-            if downnorm is not None:
-                down += [downnorm]
-            up = [uprelu] + upconv
-            if upnorm is not None:
-                up += [upnorm]
+            down = [down_relu] + down_conv
+            if down_norm is not None:
+                down += [down_norm]
+            up = [up_relu] + up_conv
+            if up_norm is not None:
+                up += [up_norm]
 
             if use_dropout:
                 model = down + [submodule] + up + [nn.Dropout(0.5)]
@@ -602,12 +560,11 @@ class UnetBlock(nn.Module):
 
 
 def conv3x3(in_planes, out_planes):
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=1,
-                     padding=1, bias=True)
+    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=1, padding=1, bias=True)
 
 
 # two usage cases, depend on kw and padw
-def upsampleConv(inplanes, outplanes, kw, padw):
+def upsample_conv(inplanes, outplanes, kw, padw):
     sequence = []
     sequence += [nn.Upsample(scale_factor=2, mode='nearest')]
     sequence += [nn.Conv2d(inplanes, outplanes, kernel_size=kw,
@@ -615,15 +572,14 @@ def upsampleConv(inplanes, outplanes, kw, padw):
     return nn.Sequential(*sequence)
 
 
-def meanpoolConv(inplanes, outplanes):
+def mean_pool_conv(inplanes, outplanes):
     sequence = []
     sequence += [nn.AvgPool2d(kernel_size=2, stride=2)]
-    sequence += [nn.Conv2d(inplanes, outplanes,
-                           kernel_size=1, stride=1, padding=0, bias=True)]
+    sequence += [nn.Conv2d(inplanes, outplanes, kernel_size=1, stride=1, padding=0, bias=True)]
     return nn.Sequential(*sequence)
 
 
-def convMeanpool(inplanes, outplanes):
+def conv_mean_pool(inplanes, outplanes):
     sequence = []
     sequence += [conv3x3(inplanes, outplanes)]
     sequence += [nn.AvgPool2d(kernel_size=2, stride=2)]
@@ -637,12 +593,12 @@ class BasicBlockUp(nn.Module):
         if norm_layer is not None:
             layers += [norm_layer(inplanes)]
         layers += [nl_layer()]
-        layers += [upsampleConv(inplanes, outplanes, kw=3, padw=1)]
+        layers += [upsample_conv(inplanes, outplanes, kw=3, padw=1)]
         if norm_layer is not None:
             layers += [norm_layer(outplanes)]
         layers += [conv3x3(outplanes, outplanes)]
         self.conv = nn.Sequential(*layers)
-        self.shortcut = upsampleConv(inplanes, outplanes, kw=1, padw=0)
+        self.shortcut = upsample_conv(inplanes, outplanes, kw=1, padw=0)
 
     def forward(self, x):
         out = self.conv(x) + self.shortcut(x)
@@ -660,31 +616,30 @@ class BasicBlock(nn.Module):
         if norm_layer is not None:
             layers += [norm_layer(inplanes)]
         layers += [nl_layer()]
-        layers += [convMeanpool(inplanes, outplanes)]
+        layers += [conv_mean_pool(inplanes, outplanes)]
         self.conv = nn.Sequential(*layers)
-        self.shortcut = meanpoolConv(inplanes, outplanes)
+        self.shortcut = mean_pool_conv(inplanes, outplanes)
 
     def forward(self, x):
         out = self.conv(x) + self.shortcut(x)
         return out
 
 
-class E_ResNet(nn.Module):
+class EResnet(nn.Module):
     def __init__(self, input_nc=3, output_nc=1, ndf=64, n_blocks=4,
-                 norm_layer=None, nl_layer=None, gpu_ids=[], vaeLike=False):
-        super(E_ResNet, self).__init__()
-        self.gpu_ids = gpu_ids
-        self.vaeLike = vaeLike
+                 norm_layer=None, nl_layer=None, vae_like=False):
+        super(EResnet, self).__init__()
+        self.vae_like = vae_like
         max_ndf = 4
         conv_layers = [
             nn.Conv2d(input_nc, ndf, kernel_size=4, stride=2, padding=1, bias=True)]
         for n in range(1, n_blocks):
             input_ndf = ndf * min(max_ndf, n)
             output_ndf = ndf * min(max_ndf, n + 1)
-            conv_layers += [BasicBlock(input_ndf,
-                                       output_ndf, norm_layer, nl_layer)]
+            conv_layers += [BasicBlock(input_ndf, output_ndf, norm_layer, nl_layer)]
+
         conv_layers += [nl_layer(), nn.AvgPool2d(8)]
-        if vaeLike:
+        if vae_like:
             self.fc = nn.Sequential(*[nn.Linear(output_ndf, output_nc)])
             self.fcVar = nn.Sequential(*[nn.Linear(output_ndf, output_nc)])
         else:
@@ -695,57 +650,56 @@ class E_ResNet(nn.Module):
         x_conv = self.conv(x)
         conv_flat = x_conv.view(x.size(0), -1)
         output = self.fc(conv_flat)
-        if self.vaeLike:
-            outputVar = self.fcVar(conv_flat)
-            return output, outputVar
+        if self.vae_like:
+            output_var = self.fcVar(conv_flat)
+            return output, output_var
         else:
             return output
-        return output
 
 
 # Defines the Unet generator.
 # |num_downs|: number of downsamplings in UNet. For example,
 # if |num_downs| == 7, image of size 128x128 will become of size 1x1
 # at the bottleneck
-class G_Unet_add_all(nn.Module):
-    def __init__(self, input_nc, output_nc, nz, num_downs, ngf=64,
-                 norm_layer=None, nl_layer=None, use_dropout=False, gpu_ids=[], upsample='basic'):
-        super(G_Unet_add_all, self).__init__()
-        self.gpu_ids = gpu_ids
+class GUNetAddAll(nn.Module):
+    def __init__(self, input_nc, output_nc, nz, num_downs, ngf=64, norm_layer=None, nl_layer=None, use_dropout=False, upsample='basic'):
+        super(GUNetAddAll, self).__init__()
         self.nz = nz
         # construct unet structure
-        unet_block = UnetBlock_with_z(ngf * 8, ngf * 8, ngf * 8, nz, None, innermost=True,
-                                      norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
-        unet_block = UnetBlock_with_z(ngf * 8, ngf * 8, ngf * 8, nz, unet_block,
-                                      norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout, upsample=upsample)
+        u_net_block = UNetBlockWithZ(ngf * 8, ngf * 8, ngf * 8, nz, None, innermost=True,
+                                     norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+        u_net_block = UNetBlockWithZ(ngf * 8, ngf * 8, ngf * 8, nz, u_net_block,
+                                     norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout,
+                                     upsample=upsample)
         for i in range(num_downs - 6):
-            unet_block = UnetBlock_with_z(ngf * 8, ngf * 8, ngf * 8, nz, unet_block,
-                                          norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout, upsample=upsample)
-        unet_block = UnetBlock_with_z(ngf * 4, ngf * 4, ngf * 8, nz, unet_block,
-                                      norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
-        unet_block = UnetBlock_with_z(ngf * 2, ngf * 2, ngf * 4, nz, unet_block,
-                                      norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
-        unet_block = UnetBlock_with_z(
-            ngf, ngf, ngf * 2, nz, unet_block, norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
-        unet_block = UnetBlock_with_z(input_nc, output_nc, ngf, nz, unet_block,
-                                      outermost=True, norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
-        self.model = unet_block
+            u_net_block = UNetBlockWithZ(ngf * 8, ngf * 8, ngf * 8, nz, u_net_block,
+                                         norm_layer=norm_layer, nl_layer=nl_layer, use_dropout=use_dropout,
+                                         upsample=upsample)
+        u_net_block = UNetBlockWithZ(ngf * 4, ngf * 4, ngf * 8, nz, u_net_block,
+                                     norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+        u_net_block = UNetBlockWithZ(ngf * 2, ngf * 2, ngf * 4, nz, u_net_block,
+                                     norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+        u_net_block = UNetBlockWithZ(
+            ngf, ngf, ngf * 2, nz, u_net_block, norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+        u_net_block = UNetBlockWithZ(input_nc, output_nc, ngf, nz, u_net_block,
+                                     outermost=True, norm_layer=norm_layer, nl_layer=nl_layer, upsample=upsample)
+        self.model = u_net_block
 
     def forward(self, x, z):
         return self.model(x, z)
 
 
-class UnetBlock_with_z(nn.Module):
+class UNetBlockWithZ(nn.Module):
     def __init__(self, input_nc, outer_nc, inner_nc, nz=0,
                  submodule=None, outermost=False, innermost=False,
                  norm_layer=None, nl_layer=None, use_dropout=False, upsample='basic', padding_type='zero'):
-        super(UnetBlock_with_z, self).__init__()
+        super(UNetBlockWithZ, self).__init__()
         p = 0
-        downconv = []
+        down_conv = []
         if padding_type == 'reflect':
-            downconv += [nn.ReflectionPad2d(1)]
+            down_conv += [nn.ReflectionPad2d(1)]
         elif padding_type == 'replicate':
-            downconv += [nn.ReplicationPad2d(1)]
+            down_conv += [nn.ReplicationPad2d(1)]
         elif padding_type == 'zero':
             p = 1
         else:
@@ -756,43 +710,40 @@ class UnetBlock_with_z(nn.Module):
         self.innermost = innermost
         self.nz = nz
         input_nc = input_nc + nz
-        downconv += [nn.Conv2d(input_nc, inner_nc,
-                               kernel_size=4, stride=2, padding=p)]
+        down_conv += [nn.Conv2d(input_nc, inner_nc,
+                                kernel_size=4, stride=2, padding=p)]
         # downsample is different from upsample
-        downrelu = nn.LeakyReLU(0.2, True)
-        uprelu = nl_layer()
+        down_relu = nn.LeakyReLU(0.2, True)
+        up_relu = nl_layer()
 
         if outermost:
-            upconv = upsampleLayer(
-                inner_nc * 2, outer_nc, upsample=upsample, padding_type=padding_type)
-            down = downconv
-            up = [uprelu] + upconv + [nn.Tanh()]
+            up_conv = upsample_layer(inplanes=inner_nc * 2, outplanes=outer_nc, upsample=upsample)
+            down = down_conv
+            up = [up_relu] + up_conv + [nn.Tanh()]
         elif innermost:
-            upconv = upsampleLayer(
-                inner_nc, outer_nc, upsample=upsample, padding_type=padding_type)
-            down = [downrelu] + downconv
-            up = [uprelu] + upconv
+            up_conv = upsample_layer(inner_nc, outer_nc, upsample=upsample)
+            down = [down_relu] + down_conv
+            up = [up_relu] + up_conv
             if norm_layer is not None:
                 up += [norm_layer(outer_nc)]
         else:
-            upconv = upsampleLayer(
-                inner_nc * 2, outer_nc, upsample=upsample, padding_type=padding_type)
-            down = [downrelu] + downconv
+            up_conv = upsample_layer(inner_nc * 2, outer_nc, upsample=upsample)
+            down = [down_relu] + down_conv
             if norm_layer is not None:
                 down += [norm_layer(inner_nc)]
-            up = [uprelu] + upconv
+            up = [up_relu] + up_conv
 
             if norm_layer is not None:
                 up += [norm_layer(outer_nc)]
 
             if use_dropout:
                 up += [nn.Dropout(0.5)]
+
         self.down = nn.Sequential(*down)
         self.submodule = submodule
         self.up = nn.Sequential(*up)
 
     def forward(self, x, z):
-        # print(x.size())
         if self.nz > 0:
             z_img = z.view(z.size(0), z.size(1), 1, 1).expand(
                 z.size(0), z.size(1), x.size(2), x.size(3))
@@ -813,39 +764,37 @@ class UnetBlock_with_z(nn.Module):
             return torch.cat([self.up(x2), x], 1)
 
 
-class E_NLayers(nn.Module):
-    def __init__(self, input_nc, output_nc=1, ndf=64, n_layers=3,
-                 norm_layer=None, nl_layer=None, gpu_ids=[], vaeLike=False):
-        super(E_NLayers, self).__init__()
-        self.gpu_ids = gpu_ids
-        self.vaeLike = vaeLike
+class ENLayers(nn.Module):
+    def __init__(self, input_nc, output_nc=1, ndf=64, n_layers=3, norm_layer=None, nl_layer=None, vae_like=False):
+        super(ENLayers, self).__init__()
+        self.vaeLike = vae_like
 
-        kw, padw = 4, 1
-        sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw,
-                              stride=2, padding=padw), nl_layer()]
+        kw, pad = 4, 1
+        sequence = [nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=pad), nl_layer()]
 
-        nf_mult = 1
-        nf_mult_prev = 1
+        nf_multi = 1
         for n in range(1, n_layers):
-            nf_mult_prev = nf_mult
-            nf_mult = min(2**n, 4)
-            sequence += [
-                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
-                          kernel_size=kw, stride=2, padding=padw)]
+            nf_multi_prev = nf_multi
+            nf_multi = min(2 ** n, 4)
+            sequence += [nn.Conv2d(ndf * nf_multi_prev, ndf * nf_multi, kernel_size=kw, stride=2, padding=pad)]
+
             if norm_layer is not None:
-                sequence += [norm_layer(ndf * nf_mult)]
+                sequence += [norm_layer(ndf * nf_multi)]
+
             sequence += [nl_layer()]
-        sequence += [nn.AvgPool2d(8)]
+
+        sequence += [nn.AvgPool2d(kernel_size=8)]
         self.conv = nn.Sequential(*sequence)
-        self.fc = nn.Sequential(*[nn.Linear(ndf * nf_mult, output_nc)])
-        if vaeLike:
-            self.fcVar = nn.Sequential(*[nn.Linear(ndf * nf_mult, output_nc)])
+        self.fc = nn.Sequential(*[nn.Linear(ndf * nf_multi, output_nc)])
+
+        if vae_like:
+            self.fcVar = nn.Sequential(*[nn.Linear(ndf * nf_multi, output_nc)])
 
     def forward(self, x):
         x_conv = self.conv(x)
         conv_flat = x_conv.view(x.size(0), -1)
         output = self.fc(conv_flat)
         if self.vaeLike:
-            outputVar = self.fcVar(conv_flat)
-            return output, outputVar
+            output_var = self.fcVar(conv_flat)
+            return output, output_var
         return output

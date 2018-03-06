@@ -2,7 +2,7 @@
 import time
 from options.train_options import TrainOptions
 from data.dataloader import create_data_loader
-from models.models import create_model
+from models.model import create_model
 from util.visualizer import Visualizer
 
 opt = TrainOptions().parse()  # set CUDA_VISIBLE_DEVICES before import torch
