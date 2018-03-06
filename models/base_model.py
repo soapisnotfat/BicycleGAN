@@ -5,7 +5,7 @@ from torch.autograd import Variable
 from . import networks
 
 
-class BaseModel():
+class BaseModel(object):
     def name(self):
         return 'BaseModel'
 

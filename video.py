@@ -1,5 +1,5 @@
 from options.video_options import VideoOptions
-from data.data_loader import CreateDataLoader
+from data.dataloader import create_data_loader
 from models.models import create_model
 from itertools import islice
 from util import util
@@ -24,7 +24,7 @@ opt.nThreads = 1   # test code only supports nThreads=1
 opt.batchSize = 1   # test code only supports batchSize=1
 opt.no_encode = True  # do not use encoder
 
-data_loader = CreateDataLoader(opt)
+data_loader = create_data_loader(opt)
 dataset = data_loader.load_data()
 model = create_model(opt)
 model.eval()
