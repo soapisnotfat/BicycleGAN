@@ -1,8 +1,8 @@
 from options.video_options import VideoOptions
 from data.dataloader import create_data_loader
-from models.model import create_model
+from models.solver import create_model
 from itertools import islice
-from util import util
+import util
 import numpy as np
 import moviepy.editor
 import os

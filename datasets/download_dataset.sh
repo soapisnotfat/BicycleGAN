@@ -4,5 +4,5 @@ TAR_FILE=$FILE.tar.gz
 TARGET_DIR=$FILE/
 wget -N $URL -O $TAR_FILE
 mkdir $TARGET_DIR
-tar -zxvf $TAR_FILE -C
+tar -zxvf $TAR_FILE
 rm $TAR_FILE
