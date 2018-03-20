@@ -1,5 +1,9 @@
 # IDE
 *.idea/
+*weight/
+*result_img/
+*dataset/
+*.tar.gz
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
