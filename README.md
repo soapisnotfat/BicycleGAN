@@ -2,7 +2,7 @@
 __Pytorch__ implementation of [BicycleGAN : Toward Multimodal Image-to-Image Translation](https://arxiv.org/abs/1711.11586).
 
 ## Model description
-<p align="center"><img width="100%" src="png/model.png" /></p>  
+<p align="center"><img width="100%" src="https://github.com/eveningglow/BicycleGAN-pytorch/blob/master/png/model.png" /></p>  
 
 ### cVAE-GAN
 cVAE-GAN is an __image reconstruction process.__ From this, the encoder can extract proper latent code z containing features of given image 'B'. Through this process, the generator can generate image which has features of 'B' but the generator also needs to be able to fool the discriminator. Futhermore, cVAE-GAN uses KL-divergence to make the generator be able to generate images using randomly sampled z from normal distribution at the test phase.
