@@ -1,6 +1,9 @@
 # BicycleGAN-pytorch
 __Pytorch__ implementation of [BicycleGAN : Toward Multimodal Image-to-Image Translation](https://arxiv.org/abs/1711.11586).
 
+## Credit
+This repo is heavily borrowed from [eveningglow's implementation](https://github.com/eveningglow/BicycleGAN-pytorch). Re-implemented by Ivorycandy and under apache-2.0 license
+
 ## Model description
 <p align="center"><img width="100%" src="https://github.com/eveningglow/BicycleGAN-pytorch/blob/master/png/model.png" /></p>  
 
@@ -70,9 +73,11 @@ You can download many datasets for BicycleGAN from [here](https://github.com/jun
 * Training images : ```data/edges2shoes/train```
 * Test images : ```data/edges2shoes/test```  
 
-## How to use
+## Usage
 ### Train
-```python train.py --root=data/edges2shoes --result_dir=result --weight_dir=weight```  
+```
+python train.py --root=data/edges2shoes --result_dir=result --weight_dir=weight
+```  
   
 ### Test
 #### Random sample  
@@ -80,15 +85,17 @@ You can download many datasets for BicycleGAN from [here](https://github.com/jun
 ```python test.py --sample_type=random --root=data/edges2shoes --result_dir=test --weight_dir=weight --img_num=5```  
   
 * Set epoch  
-```python test.py --sample_type=random --root=data/edges2shoes --result_dir=test --weight_dir=weight --img_num=5 --epoch=55```  
+```
+python test.py --sample_type=random --root=data/edges2shoes --result_dir=test --weight_dir=weight --img_num=5 --epoch=55
+```  
   
 #### Interpolation  
 * Most recent  
-```python test.py --sample_type=interpolation --root=data/edges2shoes --result_dir=test --weight_dir=weight --img_num=10```    
+```
+python test.py --sample_type=interpolation --root=data/edges2shoes --result_dir=test --weight_dir=weight --img_num=10
+```    
   
 * Set epoch  
-```python test.py --sample_type=interpolation --root=data/edges2shoes --result_dir=test --weight_dir=weight --img_num=10 --epoch=55```  
-  
-## Future work
-* Training with other datasets.
-* New model using conditional discriminator is on the training now
+```
+python test.py --sample_type=interpolation --root=data/edges2shoes --result_dir=test --weight_dir=weight --img_num=10 --epoch=55
+```  
